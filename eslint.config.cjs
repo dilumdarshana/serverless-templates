@@ -1,66 +1,56 @@
-const airbnbBase = require('eslint-config-airbnb-base');
+const tsParser = require('@typescript-eslint/parser');
+const tsPlugin = require('@typescript-eslint/eslint-plugin');
 const jest = require('eslint-plugin-jest');
 const prettier = require('eslint-plugin-prettier');
 
 module.exports = [
   {
+    files: ['src/**/*.ts'],
     languageOptions: {
-      ecmaVersion: 2020,
-      sourceType: 'commonjs',
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        project: './tsconfig.json',
+      },
       globals: {
-        browser: true,
-        commonjs: true,
-        console: 'readonly',   // ✅ Add this line
-        process: 'readonly',   // ✅ Ensure this is here for process.env
-        module: 'readonly',    // Optional, but good for CommonJS
-        require: 'readonly',   // Optional, but good for CommonJS
-        __dirname: 'readonly', // Optional, good for Node.js
-      }
+        console: 'readonly',
+        process: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        Buffer: 'readonly',
+      },
     },
     plugins: {
+      '@typescript-eslint': tsPlugin,
       jest,
       prettier,
     },
     rules: {
-      ...airbnbBase.rules,
+      ...tsPlugin.configs.recommended.rules,
       'comma-dangle': ['error', 'always-multiline'],
       'max-len': ['error', { code: 200 }],
       quotes: [2, 'single', 'avoid-escape'],
       camelcase: 'warn',
-      'no-case-declarations': 'warn',
       'no-console': 'off',
-      'no-param-reassign': [2, {
-        props: false,
-      }],
-      'linebreak-style': 0,
+      'no-param-reassign': [2, { props: false }],
       'no-shadow': 'warn',
       'no-await-in-loop': 0,
-    },
-    settings: {
-      'import/resolver': {
-        alias: {
-          map: [
-            ['#root/*', '.'],
-            ['#src/*', './src'],
-            ['#middlewares', './src/middlewares'],
-            ['#functions', './src/functions'],
-            ['#utils', './src/utils'],
-            ['#testUtils', './src/functions/common/__tests__/__utils__'],
-          ],
-          extensions: ['.js', '.json'],
-        },
-        node: {
-          extensions: ['.js', '.json', '.jsx', '.ts', '.tsx'],
-        },
-      },
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
-  // ✅ Test-specific config for Jest globals
   {
-    files: ["**/__tests__/**/*.js", "**/*.spec.js", "**/*.test.js", "**/*.spec.test.js"],
+    files: ['src/**/__tests__/**/*.ts', 'src/**/*.spec.test.ts'],
     languageOptions: {
-      ecmaVersion: 2020,
-      sourceType: 'commonjs',
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+      },
       globals: {
         jest: 'readonly',
         describe: 'readonly',

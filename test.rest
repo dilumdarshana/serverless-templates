@@ -1,12 +1,61 @@
-POST http://localhost:3000/v1/common/status
+### Health check
+POST http://localhost:5001/v1/common/status
 Content-Type: application/json
-Cache-Control: no-cache
 
 ###
-POST http://localhost:3000/v1/todo
+
+### Todo - create
+POST http://localhost:5001/v1/todo
 Content-Type: application/json
-Cache-Control: no-cache
+Authorization: Bearer <ACCESS_TOKEN>
 
 {
-  "task": "Need to pay water bill"
+  "task": "Pay water bill"
 }
+
+### Todo - list all
+GET http://localhost:5001/v1/todo
+Authorization: Bearer <ACCESS_TOKEN>
+
+### Todo - list by status (uses GSI)
+GET http://localhost:5001/v1/todo/by-status?status=pending
+Authorization: Bearer <ACCESS_TOKEN>
+
+### Todo - get one
+GET http://localhost:5001/v1/todo/<TODO_ID>
+Authorization: Bearer <ACCESS_TOKEN>
+
+### Todo - update
+PATCH http://localhost:5001/v1/todo/<TODO_ID>
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+
+{
+  "status": "completed"
+}
+
+### Todo - delete
+DELETE http://localhost:5001/v1/todo/<TODO_ID>
+Authorization: Bearer <ACCESS_TOKEN>
+
+### Order - create (producer -> SQS)
+POST http://localhost:5001/v1/order
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+
+{
+  "customerEmail": "user@example.com",
+  "amount": 99.5
+}
+
+### Upload - presigned PUT URL
+POST http://localhost:5001/v1/upload/presigned
+Content-Type: application/json
+
+{
+  "fileName": "report.pdf",
+  "contentType": "application/pdf"
+}
+
+### Upload - presigned GET URL
+GET http://localhost:5001/v1/upload/uploads/<S3_KEY>

@@ -1,12 +1,10 @@
-const Boom = require('@hapi/boom');
+import Boom from '@hapi/boom';
 
 /**
- * Return custom error in Boom template
- * @param error
- * @param error.statusCode - HTTP error code
- * @param [error.message] - Error message
+ * Convert an application error into a Boom HTTP error payload.
+ * @param error - error carrying an HTTP status code and message
  */
-const boom = (error) => {
+export const boom = (error: { statusCode?: number; message?: string }) => {
   switch (error.statusCode) {
     case 400:
       return Boom.badRequest(error.message).output;
@@ -29,24 +27,17 @@ const boom = (error) => {
     case 422:
       return Boom.badData(error.message).output;
     default:
-      return Boom.badImplementation('Un known error').output;
+      return Boom.badImplementation('Unknown error').output;
   }
 };
 
 /**
- * Return CustomError (Intercept Error).
- * @param message
- * @param code
- * @returns Error object
+ * Build a custom error carrying an HTTP status code.
+ * @param message - error message
+ * @param code - HTTP status code (default 500)
  */
-const InterceptError = (message, code = 500) => {
-  const error = new Error(message);
+export const InterceptError = (message: string, code = 500): Error & { code: number } => {
+  const error = new Error(message) as Error & { code: number };
   error.code = code;
-
   return error;
-};
-
-module.exports = {
-  boom,
-  InterceptError,
 };

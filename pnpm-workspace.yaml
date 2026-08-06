@@ -1,0 +1,16 @@
+# pnpm workspace settings (pnpm >= 10 reads settings from this file).
+# Explicitly allow packages that ship native binaries / postinstall scripts.
+allowBuilds:
+  esbuild: true
+  serverless: true
+  unrs-resolver: true
+
+# pnpm 11 blocks packages published less than 24h ago. The freshly published
+# @aws-sdk releases are pinned via minimumReleaseAgeExclude so they install.
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-cognito-identity-provider@3.1104.0'
+  - '@aws-sdk/client-dynamodb@3.1104.0'
+  - '@aws-sdk/client-s3@3.1104.0'
+  - '@aws-sdk/client-sqs@3.1104.0'
+  - '@aws-sdk/lib-dynamodb@3.1104.0'
+  - '@aws-sdk/s3-request-presigner@3.1104.0'

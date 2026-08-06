@@ -1,10 +1,9 @@
 /**
- * Middleware to manage cors in application
- * @param {*} req http request
- * @param {*} res http response
- * @param {*} next next operation
+ * CORS middleware applied to every request.
  */
-module.exports = (req, res, next) => {
+import { Request, Response } from 'lambda-api';
+
+export default (req: Request, res: Response, next: (err?: any) => void) => {
   // Add default CORS headers for every request
   res.cors({
     methods: 'GET, PATCH, POST, PUT, DELETE, OPTIONS',
@@ -13,9 +12,7 @@ module.exports = (req, res, next) => {
 
   const { origin } = req.headers;
 
-  if (
-    process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.indexOf(origin) > -1
-  ) {
+  if (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.indexOf(origin || '') > -1) {
     res.header('Access-Control-Allow-Origin', origin);
   } else if (process.env.LAMBDA_STAGE === 'local') {
     res.header('Access-Control-Allow-Origin', '*');

@@ -1,6 +1,21 @@
-org: dilumdar
-
-app: test
+# ═══════════════════════════════════════════════════════════════════════════════
+# Serverless Framework v4 - AWS TypeScript Reference Template
+#
+# This file is the single source of truth for every AWS resource, function and
+# event in the project. It is intentionally well-commented so it can be used as
+# a quick development reference.
+#
+# Patterns covered:
+#   - HTTP API Gateway v2 (REST endpoints)          -> functions: common, todo, order, upload
+#   - DynamoDB (CRUD + Query + Scan + GSI)          -> resources: StatusTable, TodoTable, OrderTable
+#   - Event-driven with SQS (producer + consumer)   -> functions: order, orderProcessor, dailyJob
+#   - Dead letter queue (DLQ) retry handling        -> resources: OrderQueue, OrderQueueDLQ
+#   - S3 storage with presigned URLs                -> resources: UploadBucket
+#   - Scheduled (cron) events                       -> function: dailyJob
+#   - Lambda custom authorizer (Cognito)            -> function: cAuthorizer
+#   - SSM Parameter Store configuration             -> provider.environment
+#   - Custom plugins (offline, prune, tracing, ...) -> plugins:
+# ═══════════════════════════════════════════════════════════════════════════════
 
 service: serverless-template
 
@@ -13,6 +28,18 @@ plugins:
   - serverless-plugin-tracing
   - ./plugins/my-plugin.js
 
+# ───────────────────────────────────────────────────────────────────────────────
+# Native TypeScript build (esbuild is bundled with Framework v4 - no plugin).
+# Handlers are referenced as `.ts` files and bundled automatically on deploy.
+# ───────────────────────────────────────────────────────────────────────────────
+build:
+  esbuild:
+    bundle: true          # bundle the function + its imports into a single file
+    minify: false         # keep readable output (set true for production)
+    sourcemap: linked
+    exclude:
+      - '@aws-sdk/*'      # rely on the AWS SDK already available in the Lambda runtime
+
 provider:
   name: aws
   runtime: nodejs22.x
@@ -22,7 +49,7 @@ provider:
   memorySize: 512
   httpApi:
     cors:
-      allowedOrigins: 
+      allowedOrigins:
         - "*"
       allowedHeaders:
         - Content-Type
@@ -38,8 +65,6 @@ provider:
       customAuthorizer:
         type: request
         functionName: cAuthorizer
-        # caching:
-        #   enabled: false
         enableSimpleResponses: true
         identitySource:
           - $request.header.Authorization
@@ -48,24 +73,57 @@ provider:
       statements:
         - Effect: Allow
           Action:
-            - ssm:*
-            - s3:*
+            - ssm:GetParameter
+          Resource: !Sub "arn:aws:ssm:${self:provider.region}:*:parameter/*"
+        - Effect: Allow
+          Action:
             - dynamodb:Query
             - dynamodb:GetItem
             - dynamodb:Scan
-            - dynamodb:BatchWriteItem
             - dynamodb:PutItem
             - dynamodb:UpdateItem
             - dynamodb:DeleteItem
-            - dynamodb:BatchGetItem
-            - ses:*
-            - cognito-idp:AdminInitiateAuth
-            - cognito-idp:AdminCreateUser
-            - cognito-idp:AdminSetUserPassword
-            - cognito-idp:AdminDeleteUser
+            - dynamodb:BatchWriteItem
+          Resource:
+            - !GetAtt StatusTable.Arn
+            - !GetAtt TodoTable.Arn
+            - !GetAtt OrderTable.Arn
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:SendMessageBatch
+          Resource: !GetAtt OrderQueue.Arn
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+          Resource: !GetAtt OrderQueue.Arn
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+          Resource:
+            - !Sub "${UploadBucket.Arn}/*"
+        - Effect: Allow
+          Action:
+            - cognito-idp:GetUser
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
           Resource: "*"
   environment:
-    ALLOWED_ORIGINS: ${ssm:/${param:stage, self:provider.stage}/lambda/COMMON/ALLOWED_ORIGINS}
+    # SSM Parameter Store is used for shared configuration. The stage is
+    # resolved from --param stage or the provider stage. A default of "*" is
+    # used when the parameter does not exist yet, so the template deploys
+    # without pre-provisioned parameters.
+    ALLOWED_ORIGINS: ${ssm:/${param:stage, self:provider.stage}/lambda/COMMON/ALLOWED_ORIGINS, "*"}
+    # Queue / bucket references are resolved from the CloudFormation stack so
+    # functions know where to send messages / uploads.
+    ORDER_QUEUE_URL: !Ref OrderQueue
+    UPLOAD_BUCKET: !Ref UploadBucket
   deploymentBucket:
     name: sls-template-deployment-bucket-${param:stage, self:provider.stage}
 
@@ -76,37 +134,47 @@ custom:
     tags:
       - Key: Environment
         Value: ${param:stage, self:provider.stage}
-      # - Key: Service
-      #   Value: ${self:service}
 
   headers:
     Access-Control-Allow-Headers: "Content-Type,X-Amz-Date,Authorization,x-amz-security-token,x-amz-user-agent,x-amzn-trace-id,X-Api-Key,grant_type,refresh_token"
+
   serverless-offline:
-    httpPort: 3000
+    httpPort: 5001
     host: 0.0.0.0
     noAuth: true
+
+  # Local values for SSM parameters used while running serverless-offline
   serverless-offline-ssm:
     stages:
       - local
     ssm:
       '/local/lambda/COMMON/ALLOWED_ORIGINS': "*"
+
   prune:
     automatic: true
     number: 10
 
+# ───────────────────────────────────────────────────────────────────────────────
+# Functions - each maps to an entry point exported from a `.ts` file.
+# Functions sharing `src/handler.run` route through lambda-api; event-only
+# functions (orderProcessor, dailyJob) expose their own handlers.
+# ───────────────────────────────────────────────────────────────────────────────
 functions:
+  # Health check (no auth)
   common:
     handler: src/handler.run
-    description: Routing event to common APIs
+    description: Health check / status endpoint
     tracing: Active
     architecture: arm64
     events:
       - httpApi:
           path: /v1/common/{proxy+}
           method: any
+
+  # Todo REST API (DynamoDB CRUD)
   todo:
     handler: src/handler.run
-    description: Routing event to todo APIs
+    description: Todo REST API backed by DynamoDB
     tracing: Active
     architecture: arm64
     events:
@@ -115,12 +183,65 @@ functions:
           method: any
           authorizer:
             name: customAuthorizer
+
+  # Order producer (HTTP -> DynamoDB -> SQS)
+  order:
+    handler: src/handler.run
+    description: Create orders and publish them to the SQS queue
+    tracing: Active
+    architecture: arm64
+    events:
+      - httpApi:
+          path: /v1/order/{proxy+}
+          method: any
+          authorizer:
+            name: customAuthorizer
+
+  # S3 presigned URL endpoints
+  upload:
+    handler: src/handler.run
+    description: Generate presigned URLs for S3 uploads/downloads
+    tracing: Active
+    architecture: arm64
+    events:
+      - httpApi:
+          path: /v1/upload/{proxy+}
+          method: any
+
+  # SQS consumer - triggered when a message lands on the order queue.
+  # Messages that fail repeatedly (maxReceiveCount) move to the DLQ.
+  orderProcessor:
+    handler: src/functions/orderProcessor/orderProcessor.run
+    description: Event-driven consumer that processes orders from the SQS queue
+    tracing: Active
+    architecture: arm64
+    events:
+      - sqs:
+          arn: !GetAtt OrderQueue.Arn
+          batchSize: 5
+          maximumBatchingWindowInSeconds: 10
+          functionResponseType: REPORT_BATCH_ITEM_FAILURES
+
+  # Scheduled job - runs daily at 02:00 UTC and retries stale orders
+  dailyJob:
+    handler: src/functions/dailyJob/dailyJob.run
+    description: Daily cron job that republishes stale orders for processing
+    tracing: Active
+    architecture: arm64
+    events:
+      - schedule: cron(0 2 * * ? *)
+
+  # API Gateway Lambda custom authorizer (Cognito)
   cAuthorizer:
     handler: src/handler.cAuthorizer
-    description: Lambda custom authorizer
+    description: Lambda custom authorizer that validates Cognito tokens
 
+# ───────────────────────────────────────────────────────────────────────────────
+# CloudFormation resources (DynamoDB tables, SQS queues, S3 bucket, ...)
+# ───────────────────────────────────────────────────────────────────────────────
 resources:
   Resources:
+    # Status table for the health check
     StatusTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -136,20 +257,75 @@ resources:
           WriteCapacityUnits: 1
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true
+
+    # Todo table - primary key `id`, GSI on (status, createdAt) so todos can be
+    # queried by status efficiently.
     TodoTable:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: todo-${param:stage, self:provider.stage}
         AttributeDefinitions:
           - AttributeName: id
-            AttributeType: N
-          - AttributeName: task
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: createdAt
             AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
-          - AttributeName: task
-            KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true
+        GlobalSecondaryIndexes:
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    # Order table used by both the order producer and the SQS consumer
+    OrderTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: order-${param:stage, self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: orderId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+
+    # SQS queue + dead letter queue for the event-driven order flow
+    OrderQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: order-${param:stage, self:provider.stage}
+        VisibilityTimeout: 30
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt OrderQueueDLQ.Arn
+          maxReceiveCount: 3
+
+    OrderQueueDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: order-dlq-${param:stage, self:provider.stage}
+
+    # S3 bucket for uploads. CORS is enabled so browsers can PUT files directly
+    # using presigned URLs.
+    UploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: sls-template-uploads-${param:stage, self:provider.stage}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: ["*"]
+              AllowedMethods: [GET, PUT]
+              AllowedOrigins: ["*"]
+              MaxAge: 3000
