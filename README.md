@@ -162,8 +162,8 @@ flowchart LR
     F_PROCESSOR --> T_ORDER
     Q -->|redrive| DLQ
 
-    F_DAILY -->|Query GSI (status = CREATED)| T_ORDER
-    F_DAILY -->|SendMessageBatch (re-publish stale)| Q
+    F_DAILY -->|"Query GSI (status = CREATED)"| T_ORDER
+    F_DAILY -->|"SendMessageBatch (re-publish stale)"| Q
 
     F_UPLOAD -->|presigned URL| BUCKET
     C -->|PUT / GET directly| BUCKET
