@@ -77,8 +77,9 @@ serverless login
 ├── plugins/
 │   └── my-plugin.js               # example custom plugin
 └── src/
-    ├── handler.ts                 # Lambda entry points: run (HTTP) + cAuthorizer
-    ├── routes.ts                  # HTTP route definitions
+    ├── handler.ts                 # Lambda entry point: cAuthorizer (Cognito)
+    ├── handlers/
+    │   └── createHttpHandler.ts   # factory: builds a per-feature lambda-api router
     ├── controller.ts              # base controller (validate → service → respond)
     ├── middlewares/
     │   └── cors.ts                # CORS middleware
@@ -94,7 +95,7 @@ serverless login
     │   ├── validationHelper.ts    # Joi validation helpers
     │   └── commonHelper.ts        # timestamps, id generation
     └── functions/                 # one folder per feature
-        ├── common/                # health check
+        ├── common/                # health check (handler + routes)
         ├── todo/                  # REST API + DynamoDB CRUD
         ├── order/                 # HTTP producer → SQS
         ├── orderProcessor/        # SQS consumer (event-driven)
@@ -105,8 +106,10 @@ serverless login
 Each feature follows the same layered pattern:
 
 ```
-routes.ts ──▶ controller ──▶ validation (Joi) ──▶ service ──▶ AWS SDK
+<feature>/handler.ts ──▶ routes.ts ──▶ controller ──▶ validation (Joi) ──▶ service ──▶ AWS SDK
 ```
+
+Each HTTP feature has its own `handler.ts` + `routes.ts`. The shared `createHttpHandler` factory builds a `lambda-api` router (base `/v1`), wires CORS + preflight, then registers only that feature's routes — so every function bundles **only its own feature's code** (per-function scaling, deploy, and rollback).
 
 ---
 
@@ -187,7 +190,7 @@ function is exposed via a `{proxy+}` path so it can scale independently:
 
 ```yaml
 todo:
-  handler: src/handler.run
+  handler: src/functions/todo/handler.run
   events:
     - httpApi:
         path: /v1/todo/{proxy+}
@@ -196,9 +199,14 @@ todo:
           name: customAuthorizer
 ```
 
-Routes are registered in `src/routes.ts`:
+The handler builds its own router via the shared factory, then registers only
+the todo routes in `src/functions/todo/routes.ts`:
 
 ```ts
+// src/functions/todo/handler.ts
+export const run = createHttpHandler(registerTodoRoutes);
+
+// src/functions/todo/routes.ts
 api.post('/todo', createTodo);
 api.get('/todo', listTodos);
 api.get('/todo/:id', getTodo);

@@ -156,13 +156,15 @@ custom:
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Functions - each maps to an entry point exported from a `.ts` file.
-# Functions sharing `src/handler.run` route through lambda-api; event-only
-# functions (orderProcessor, dailyJob) expose their own handlers.
+# HTTP functions each own a lambda-api router (built by
+# `src/handlers/createHttpHandler.ts`) that only registers their routes, so
+# each function bundles only its feature's code. Event-only functions
+# (orderProcessor, dailyJob) expose their own handlers.
 # ───────────────────────────────────────────────────────────────────────────────
 functions:
   # Health check (no auth)
   common:
-    handler: src/handler.run
+    handler: src/functions/common/handler.run
     description: Health check / status endpoint
     tracing: Active
     architecture: arm64
@@ -173,7 +175,7 @@ functions:
 
   # Todo REST API (DynamoDB CRUD)
   todo:
-    handler: src/handler.run
+    handler: src/functions/todo/handler.run
     description: Todo REST API backed by DynamoDB
     tracing: Active
     architecture: arm64
@@ -186,7 +188,7 @@ functions:
 
   # Order producer (HTTP -> DynamoDB -> SQS)
   order:
-    handler: src/handler.run
+    handler: src/functions/order/handler.run
     description: Create orders and publish them to the SQS queue
     tracing: Active
     architecture: arm64
@@ -199,7 +201,7 @@ functions:
 
   # S3 presigned URL endpoints
   upload:
-    handler: src/handler.run
+    handler: src/functions/upload/handler.run
     description: Generate presigned URLs for S3 uploads/downloads
     tracing: Active
     architecture: arm64
