@@ -2,6 +2,7 @@ import { dbClientPut } from '../../utils/dynamoDbHelper';
 import { sendMessage } from '../../utils/sqsHelper';
 import { DYNAMO_TABLE_ORDER, SQS_ORDER_QUEUE_URL } from '../../utils/constants';
 import { generateId, getCurrentTimestamp } from '../../utils/commonHelper';
+import { Attributes } from '../../controller';
 
 export type OrderStatus = 'CREATED' | 'PROCESSED' | 'FAILED';
 
@@ -28,8 +29,8 @@ export interface OrderMessage {
  * This demonstrates the event-driven (producer) pattern: the API responds
  * immediately while the heavy work happens downstream.
  */
-export const createOrder = async (data: { customerEmail: string; amount: number }) => {
-  const { customerEmail, amount } = data;
+export const createOrder = async (data: Attributes) => {
+  const { customerEmail, amount } = data as { customerEmail: string; amount: number };
 
   const order: OrderItem = {
     orderId: generateId(),

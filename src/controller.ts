@@ -9,16 +9,30 @@
  */
 import { defaultReject, defaultResolve } from './utils/responseHelper';
 import { Request, Response } from 'lambda-api';
+import { AuthorizerContext } from './utils/cognitoHelper';
+
+/**
+ * Attribute bag assembled by the base controller and forwarded to services.
+ * Services narrow this down to the fields they actually need (they were
+ * validated by the Joi validator before reaching the service).
+ */
+export interface Attributes {
+  [key: string]: unknown;
+  cookies?: Record<string, string>;
+  headers?: Record<string, string | undefined>;
+  query?: Record<string, string | undefined>;
+  params?: Record<string, string | undefined>;
+}
 
 export interface ServiceFunction {
-  (data: any, extraData?: Record<string, any>): Promise<any>;
+  (data: Attributes, extraData?: AuthorizerContext): Promise<unknown>;
 }
 
 interface ControllerParams {
   service: ServiceFunction;
-  validator?: ((req: Request) => Promise<Record<string, any>>) | null;
-  resolve?: (res: Response, data: any) => Promise<void>;
-  reject?: (err: any, res: Response, req: Request) => Promise<void>;
+  validator?: ((req: Request) => Promise<Attributes>) | null;
+  resolve?: (res: Response, data: unknown) => Promise<void>;
+  reject?: (err: unknown, res: Response, req: Request) => Promise<void>;
 }
 
 const controller = async (req: Request, res: Response, params: ControllerParams) => {
@@ -26,7 +40,7 @@ const controller = async (req: Request, res: Response, params: ControllerParams)
   const reject = params.reject || defaultReject;
 
   try {
-    const attributes = params.validator ? await params.validator(req) : {} as Record<string, any>;
+    const attributes: Attributes = params.validator ? await params.validator(req) : {};
 
     if (req.cookies) attributes.cookies = req.cookies;
     if (req.headers) attributes.headers = req.headers;
@@ -34,7 +48,8 @@ const controller = async (req: Request, res: Response, params: ControllerParams)
     if (req.params) attributes.params = req.params;
 
     // Extra data (role, email, ...) injected by the API Gateway custom authorizer
-    const { requestContext: { authorizer: { lambda: extraData } = {} } = {} } = req as any;
+    const extraData: AuthorizerContext =
+      (req.requestContext.authorizer as { lambda?: AuthorizerContext } | null)?.lambda ?? {};
 
     const data = await params.service(attributes, extraData);
 

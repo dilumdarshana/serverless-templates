@@ -1,19 +1,23 @@
 import { boom } from './errorHelper';
+import { Response } from 'lambda-api';
 
 /**
  * Build and send an error response.
  * @param error - thrown application error
  * @param response - lambda-api response object
  */
-export const defaultReject = async (error: Error & { code?: number }, response: any) => {
+export const defaultReject = async (error: unknown, response: Response) => {
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  const statusCode = (error as { code?: number } | null)?.code;
+
   const boomError = boom({
-    message: error.message,
-    statusCode: error.code,
+    message,
+    statusCode,
   }).payload;
 
   const errorResponse = {
     ...boomError,
-    stackTrace: error.stack,
+    stackTrace: error instanceof Error ? error.stack : undefined,
   };
 
   response.status(boomError.statusCode).json(boomError);
@@ -29,6 +33,6 @@ export const defaultReject = async (error: Error & { code?: number }, response: 
  * @param response - lambda-api response object
  * @param data - payload to return
  */
-export const defaultResolve = async (response: any, data: unknown) => {
+export const defaultResolve = async (response: Response, data: unknown) => {
   response.status(200).json(data);
 };

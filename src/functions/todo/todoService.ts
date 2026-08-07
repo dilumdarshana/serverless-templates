@@ -10,6 +10,7 @@ import {
 import { DYNAMO_TABLE_TODO } from '../../utils/constants';
 import { generateId, getCurrentTimestamp } from '../../utils/commonHelper';
 import { InterceptError } from '../../utils/errorHelper';
+import { Attributes } from '../../controller';
 
 export interface TodoItem {
   id: string;
@@ -25,8 +26,8 @@ const TABLE = DYNAMO_TABLE_TODO;
  * Create a todo item.
  * Demonstrates: PutItem
  */
-export const createTodo = async (data: { task: string }) => {
-  const { task } = data;
+export const createTodo = async (data: Attributes) => {
+  const { task } = data as { task: string };
   const timestamp = getCurrentTimestamp();
 
   const item: TodoItem = {
@@ -51,8 +52,8 @@ export const createTodo = async (data: { task: string }) => {
  * Fetch a single todo by id.
  * Demonstrates: GetItem
  */
-export const getTodo = async (data: { params: { id: string } }) => {
-  const { id } = data.params;
+export const getTodo = async (data: Attributes) => {
+  const { id } = data.params as { id: string };
 
   const result = await dbClientGetItem({
     TableName: TABLE,
@@ -90,8 +91,8 @@ export const listTodos = async () => {
  * Demonstrates: Query against a Global Secondary Index (StatusIndex on
  * `status` + `createdAt`), which is far cheaper than a Scan.
  */
-export const listTodosByStatus = async (data: { query: { status: string } }) => {
-  const { status } = data.query;
+export const listTodosByStatus = async (data: Attributes) => {
+  const { status } = data.query as { status: string };
 
   const result = await dbClientQuery({
     TableName: TABLE,
@@ -112,9 +113,9 @@ export const listTodosByStatus = async (data: { query: { status: string } }) => 
  * Partially update a todo (only provided fields are updated).
  * Demonstrates: UpdateItem with a dynamic UpdateExpression.
  */
-export const updateTodo = async (data: { params: { id: string }; body: { task?: string; status?: 'pending' | 'completed' } }) => {
-  const { id } = data.params;
-  const updates = data.body;
+export const updateTodo = async (data: Attributes) => {
+  const { id } = data.params as { id: string };
+  const updates = data.body as { task?: string; status?: 'pending' | 'completed' };
 
   // ensure the item exists first
   await getTodo(data);
@@ -143,8 +144,8 @@ export const updateTodo = async (data: { params: { id: string }; body: { task?: 
  * Delete a todo.
  * Demonstrates: DeleteItem with a conditional expression.
  */
-export const deleteTodo = async (data: { params: { id: string } }) => {
-  const { id } = data.params;
+export const deleteTodo = async (data: Attributes) => {
+  const { id } = data.params as { id: string };
 
   const result = await dbClientDelete({
     TableName: TABLE,

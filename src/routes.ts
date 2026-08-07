@@ -6,6 +6,7 @@
  * corresponding function via `{proxy+}` paths, so each feature can scale
  * independently while reusing the same router.
  */
+import { API, Request, Response } from 'lambda-api';
 import { healthChecker } from './functions/common/commonController';
 import {
   createTodo,
@@ -21,11 +22,10 @@ import {
   getPresignedDownload,
 } from './functions/upload/uploadController';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const load = (api: any) => {
+export const load = (api: API) => {
   // Preflight CORS
-  api.options('/*', (req: any, res: any) => {
-    res.cors().send({});
+  api.options('/*', (req: Request, res: Response) => {
+    res.cors({}).send({});
   });
 
   // ── Common ──────────────────────────────────────────────
