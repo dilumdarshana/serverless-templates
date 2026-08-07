@@ -115,7 +115,12 @@ export const listTodosByStatus = async (data: Attributes) => {
  */
 export const updateTodo = async (data: Attributes) => {
   const { id } = data.params as { id: string };
-  const updates = data.body as { task?: string; status?: 'pending' | 'completed' };
+  const { task, status } = data as { task?: string; status?: 'pending' | 'completed' };
+
+  // Only include fields that were actually provided in the request body
+  const updates: { task?: string; status?: 'pending' | 'completed' } = {};
+  if (task !== undefined) updates.task = task;
+  if (status !== undefined) updates.status = status;
 
   // ensure the item exists first
   await getTodo(data);

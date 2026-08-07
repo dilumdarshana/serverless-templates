@@ -1,5 +1,11 @@
-import { createTodo, getTodo, deleteTodo } from '../todoService';
-import { dbClientPut, dbClientGetItem, dbClientDelete } from '../../../utils/dynamoDbHelper';
+import { createTodo, getTodo, deleteTodo, updateTodo } from '../todoService';
+import {
+  dbClientPut,
+  dbClientGetItem,
+  dbClientDelete,
+  dbClientUpdate,
+  buildUpdateExpression,
+} from '../../../utils/dynamoDbHelper';
 
 jest.mock('../../../utils/dynamoDbHelper', () => ({
   dbClientPut: jest.fn(),
@@ -8,12 +14,18 @@ jest.mock('../../../utils/dynamoDbHelper', () => ({
   dbClientQuery: jest.fn(),
   dbClientUpdate: jest.fn(),
   dbClientDelete: jest.fn(),
-  buildUpdateExpression: jest.fn(),
+  buildUpdateExpression: jest.fn(() => ({
+    UpdateExpression: 'SET #updatedAt = :updatedAt',
+    ExpressionAttributeNames: { '#updatedAt': 'updatedAt' },
+    ExpressionAttributeValues: { ':updatedAt': '2026-01-01T00:00:00.000Z' },
+  })),
 }));
 
 const mockedPut = dbClientPut as jest.Mock;
 const mockedGet = dbClientGetItem as jest.Mock;
 const mockedDelete = dbClientDelete as jest.Mock;
+const mockedUpdate = dbClientUpdate as jest.Mock;
+const mockedBuildUpdateExpression = buildUpdateExpression as jest.Mock;
 
 describe('Todo service', () => {
   beforeEach(() => {
@@ -52,5 +64,29 @@ describe('Todo service', () => {
     mockedDelete.mockResolvedValue({});
 
     await expect(deleteTodo({ params: { id: 'missing' } })).rejects.toMatchObject({ code: 404 });
+  });
+
+  test('updateTodo should update only the fields provided in the request body', async () => {
+    mockedGet.mockResolvedValue({
+      Item: { id: 'abc', task: 'Buy milk', status: 'pending', createdAt: '2026-01-01T00:00:00.000Z' },
+    });
+    mockedUpdate.mockResolvedValue({});
+    mockedBuildUpdateExpression.mockReturnValue({
+      UpdateExpression: 'SET #task = :task, #updatedAt = :updatedAt',
+      ExpressionAttributeNames: { '#task': 'task', '#updatedAt': 'updatedAt' },
+      ExpressionAttributeValues: { ':task': 'Updated task', ':updatedAt': '2026-01-01T00:00:00.000Z' },
+    });
+
+    await updateTodo({ params: { id: 'abc' }, task: 'Updated task' });
+
+    expect(mockedBuildUpdateExpression).toHaveBeenCalledWith(
+      expect.objectContaining({ task: 'Updated task' }),
+    );
+    expect(mockedBuildUpdateExpression).toHaveBeenCalledWith(
+      expect.not.objectContaining({ status: expect.anything() }),
+    );
+    expect(mockedUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ Key: { id: 'abc' } }),
+    );
   });
 });

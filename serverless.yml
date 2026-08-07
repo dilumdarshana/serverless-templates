@@ -48,19 +48,9 @@ provider:
   timeout: 30
   memorySize: 512
   httpApi:
-    cors:
-      allowedOrigins:
-        - "*"
-      allowedHeaders:
-        - Content-Type
-        - X-Amz-Date
-        - Authorization
-        - refresh_token
-        - grant_type
-        - x-amz-security-token
-        - x-amz-user-agent
-        - x-amzn-trace-id
-        - X-Api-Key
+    # CORS is handled at the application layer by `src/middlewares/cors.ts`
+    # (which enforces the ALLOWED_ORIGINS allow-list). If httpApi.cors were
+    # also configured, API Gateway would override those headers.
     authorizers:
       customAuthorizer:
         type: request
@@ -289,7 +279,9 @@ resources:
             Projection:
               ProjectionType: ALL
 
-    # Order table used by both the order producer and the SQS consumer
+    # Order table used by both the order producer and the SQS consumer.
+    # The GSI on (status, createdAt) lets the daily reconciliation job query
+    # stale orders instead of scanning the whole table.
     OrderTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -297,12 +289,25 @@ resources:
         AttributeDefinitions:
           - AttributeName: orderId
             AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
         KeySchema:
           - AttributeName: orderId
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true
+        GlobalSecondaryIndexes:
+          - IndexName: StatusCreatedAtIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     # SQS queue + dead letter queue for the event-driven order flow
     OrderQueue:
