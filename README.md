@@ -113,6 +113,94 @@ Each HTTP feature has its own `handler.ts` + `routes.ts`. The shared `createHttp
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+    C["Browser / Client"]
+
+    subgraph HTTP ["HTTP API (API Gateway v2)"]
+        AUTH["cAuthorizer<br/>Cognito token validation"]
+        APIGW["API Gateway<br/>/v1/* routes"]
+    end
+
+    subgraph HTTPFunctions ["HTTP functions (each = own lambda-api router)"]
+        F_COMMON["common<br/>health check"]
+        F_TODO["todo<br/>REST CRUD"]
+        F_ORDER["order<br/>producer"]
+        F_UPLOAD["upload<br/>presigned URLs"]
+    end
+
+    subgraph Events ["Event-driven & scheduled"]
+        Q["OrderQueue (SQS)"]
+        DLQ["OrderQueueDLQ<br/>after 3 failed deliveries"]
+        F_PROCESSOR["orderProcessor<br/>SQS consumer"]
+        F_DAILY["dailyJob<br/>cron 02:00 UTC"]
+    end
+
+    subgraph Storage ["Storage"]
+        T_STATUS[("StatusTable")]
+        T_TODO[("TodoTable")]
+        T_ORDER[("OrderTable<br/>+ GSI status+createdAt")]
+        BUCKET[("UploadBucket (S3)")]
+        SSM[("SSM Parameter Store")]
+    end
+
+    C --> APIGW
+    APIGW --> AUTH
+    AUTH -- Allow/Deny policy --> APIGW
+    APIGW --> F_COMMON
+    APIGW --> F_TODO
+    APIGW --> F_ORDER
+    APIGW --> F_UPLOAD
+
+    F_COMMON --> T_STATUS
+    F_TODO --> T_TODO
+    F_ORDER --> T_ORDER
+    F_ORDER -->|SendMessage| Q
+    Q -->|invokes| F_PROCESSOR
+    F_PROCESSOR --> T_ORDER
+    Q -->|redrive| DLQ
+
+    F_DAILY -->|Query GSI (status = CREATED)| T_ORDER
+    F_DAILY -->|SendMessageBatch (re-publish stale)| Q
+
+    F_UPLOAD -->|presigned URL| BUCKET
+    C -->|PUT / GET directly| BUCKET
+
+    SSM -.->|ALLOWED_ORIGINS etc.| APIGW
+```
+
+### Order flow (event-driven, end-to-end)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Browser / Client
+    participant GW as API Gateway
+    participant O as order (producer)
+    participant DB as OrderTable (DynamoDB)
+    participant Q as OrderQueue (SQS)
+    participant P as orderProcessor (consumer)
+    participant DLQ as OrderQueueDLQ
+
+    C->>GW: POST /v1/order {customerEmail, amount}
+    GW->>O: invoke (authorized)
+    O->>DB: PutItem (status = CREATED)
+    O->>Q: SendMessage (order payload)
+    O-->>C: 200 OrderCreatedSuccessfully
+    Note over Q,P: SQS delivers in batches (batchSize 5)
+    Q->>P: invoke (batch of messages)
+    P->>DB: UpdateItem (status = PROCESSED)
+    P-->>Q: batchItemFailures (partial batch)
+    alt message keeps failing
+        Note over Q,DLQ: maxReceiveCount = 3 exceeded
+        Q->>DLQ: message moved to dead letter queue
+    end
+```
+
+---
+
 ## Quick start
 
 ### 1. Install dependencies
