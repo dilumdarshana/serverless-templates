@@ -6,26 +6,23 @@ import { DYNAMO_TABLE_APPLICATION_STATUS } from '../../utils/constants';
  * the Lambda can reach DynamoDB.
  */
 export const status = async () => {
-  const params = {
-    TableName: DYNAMO_TABLE_APPLICATION_STATUS,
-    Key: { id: 1 },
-  };
-
-  let dynamoDbRes: unknown = null;
+  let dynamodb: 'connected' | 'failed' = 'connected';
 
   try {
-    dynamoDbRes = await dbClientGetItem(params);
-  } catch (e) {
-    dynamoDbRes = 'error';
+    await dbClientGetItem({
+      TableName: DYNAMO_TABLE_APPLICATION_STATUS,
+      Key: { id: 1 },
+    });
+  } catch (error) {
+    console.error('Health check: DynamoDB unreachable', error);
+    dynamodb = 'failed';
   }
 
   return {
     message: 'success',
     data: {
       serverTime: new Date().toISOString(),
-      servicesStatus: {
-        dynamodb: dynamoDbRes === 'error' ? 'failed' : 'connected',
-      },
+      servicesStatus: { dynamodb },
     },
   };
 };
