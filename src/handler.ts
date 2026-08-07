@@ -8,7 +8,7 @@
  *                  token and returns an Allow/Deny IAM policy).
  */
 import lambdaApi from 'lambda-api';
-import { Context } from 'aws-lambda';
+import { APIGatewayProxyEventV2, APIGatewayRequestAuthorizerEvent, Context } from 'aws-lambda';
 import { load } from './routes';
 import cors from './middlewares/cors';
 import { doAuth } from './utils/authHelper';
@@ -18,12 +18,6 @@ const api = lambdaApi({ version: 'v1.0', base: '/v1' });
 api.use(cors);
 load(api);
 
-export const run = async (event: any, context: Context) => {
-  try {
-    return api.run(event, context);
-  } catch (err) {
-    throw new Error('Unknown error occurred, handler.js');
-  }
-};
+export const run = (event: APIGatewayProxyEventV2, context: Context) => api.run(event, context);
 
-export const cAuthorizer = async (event: any) => doAuth(event);
+export const cAuthorizer = (event: APIGatewayRequestAuthorizerEvent) => doAuth(event);
