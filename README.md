@@ -4,7 +4,7 @@ A production-style, well-commented **AWS Serverless** reference built with the
 **Serverless Framework v4** and **TypeScript**. Use it as a quick development
 guide for the most common serverless patterns.
 
-> **Stack:** Serverless Framework v4 · TypeScript · Node.js 22 · AWS Lambda ·
+> **Stack:** Serverless Framework v4 · TypeScript · Node.js 24 · AWS Lambda ·
 > API Gateway (HTTP API v2) · DynamoDB · SQS · S3 · Cognito · SSM
 
 ---
@@ -52,7 +52,7 @@ guide for the most common serverless patterns.
 
 ## Prerequisites
 
-- **Node.js 22+** (`.nvmrc` pins `v22.11.0`)
+- **Node.js 24+** (`.nvmrc` pins `v24.15.0`)
 - **pnpm** (the repo uses a `pnpm-lock.yaml`)
 - **AWS credentials** configured (e.g. `aws configure` or environment variables)
 - **Serverless Framework v4** — requires a one-time `serverless login` (or a

@@ -42,7 +42,7 @@ build:
 
 provider:
   name: aws
-  runtime: nodejs22.x
+  runtime: nodejs24.x
   stage: local
   region: us-west-2
   timeout: 30
