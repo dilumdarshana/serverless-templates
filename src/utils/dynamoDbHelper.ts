@@ -18,8 +18,16 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 
 /**
- * When running locally (serverless-offline) we point the client at the local
- * DynamoDB endpoint. In AWS the SDK picks up credentials/region automatically.
+ * Plain JavaScript value types the DocumentClient can marshal for us.
+ * This is a subset of `NativeAttributeValue` and is what the code in this
+ * project writes to DynamoDB (never `{ S: "..." }` shapes).
+ */
+type DynamoDbValue = string | number | boolean | null | undefined;
+
+/**
+ * Client configuration. When running unit tests (`LOCAL === 'true'`) the
+ * region is taken from `LAMBDA_REGION`; in AWS the SDK falls back to the
+ * `AWS_REGION` / credentials already present in the Lambda runtime.
  */
 const getDynamoDbConfig = () => (process.env.LOCAL === 'true'
   ? { region: process.env.LAMBDA_REGION }
@@ -28,6 +36,9 @@ const getDynamoDbConfig = () => (process.env.LOCAL === 'true'
 const dDbClient = new DynamoDBClient({ ...getDynamoDbConfig() });
 const docClient = DynamoDBDocumentClient.from(dDbClient);
 
+// Thin wrappers over the DocumentClient commands - they only exist so feature
+// services can import a short, typed name instead of constructing commands
+// inline. Each one passes the DocumentClient input straight through.
 export const dbClientGetItem = (params: GetCommand['input']) => docClient.send(new GetCommand(params));
 
 export const dbClientQuery = (params: QueryCommand['input']) => docClient.send(new QueryCommand(params));
@@ -47,12 +58,15 @@ export const dbClientScan = (params: ScanCommand['input']) => docClient.send(new
  *
  * Example: { task: 'Buy milk', status: 'completed' } produces
  *   UPDATE todo SET #task = :task, #status = :status WHERE ...
+ *
+ * Placeholder names (`#task`) are safe against reserved-word collisions; a
+ * literal `task` in the expression would fail if it were ever a reserved word.
  */
 export const buildUpdateExpression = (
-  attributes: Record<string, any>,
-): { UpdateExpression: string; ExpressionAttributeNames: Record<string, string>; ExpressionAttributeValues: Record<string, any> } => {
+  attributes: Record<string, DynamoDbValue>,
+): { UpdateExpression: string; ExpressionAttributeNames: Record<string, string>; ExpressionAttributeValues: Record<string, DynamoDbValue> } => {
   const ExpressionAttributeNames: Record<string, string> = {};
-  const ExpressionAttributeValues: Record<string, any> = {};
+  const ExpressionAttributeValues: Record<string, DynamoDbValue> = {};
 
   const setExpressions = Object.entries(attributes).map(([key, value]) => {
     const name = `#${key}`;

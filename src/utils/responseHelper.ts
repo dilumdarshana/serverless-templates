@@ -3,6 +3,11 @@ import { Response } from 'lambda-api';
 
 /**
  * Build and send an error response.
+ *
+ * The Boom payload is returned to the client; the stack trace is only ever
+ * logged (and only for 5xx errors, which are unexpected and worth reporting).
+ * 4xx errors are client mistakes and are not logged as application errors.
+ *
  * @param error - thrown application error
  * @param response - lambda-api response object
  */

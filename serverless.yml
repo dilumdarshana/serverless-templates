@@ -105,6 +105,12 @@ provider:
             - xray:PutTelemetryRecords
           Resource: "*"
   environment:
+    # Lambda does not receive the stage/region automatically, so they are
+    # injected explicitly. LAMBDA_STAGE drives table/queue/bucket suffixes in
+    # `src/utils/constants.ts` and the CORS middleware (local vs deployed);
+    # LAMBDA_REGION is used by the AWS SDK v3 clients in `src/utils/`.
+    LAMBDA_STAGE: ${param:stage, self:provider.stage}
+    LAMBDA_REGION: ${self:provider.region}
     # SSM Parameter Store is used for shared configuration. The stage is
     # resolved from --param stage or the provider stage. A default of "*" is
     # used when the parameter does not exist yet, so the template deploys

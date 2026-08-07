@@ -8,7 +8,7 @@
  * Uses a Query against the `StatusCreatedAtIndex` GSI (status + createdAt)
  * rather than a full-table Scan.
  */
-import { Context } from 'aws-lambda';
+import { ScheduledEvent, Context } from 'aws-lambda';
 import { dbClientQuery } from '../../utils/dynamoDbHelper';
 import { sendMessageBatch } from '../../utils/sqsHelper';
 import { DYNAMO_TABLE_ORDER, SQS_ORDER_QUEUE_URL } from '../../utils/constants';
@@ -17,7 +17,7 @@ import { OrderItem, OrderMessage } from '../order/orderService';
 const STALE_AFTER_HOURS = 24;
 const MAX_BATCH = 10;
 
-export const run = async (_event: unknown, _context: Context) => {
+export const run = async (_event: ScheduledEvent, _context: Context) => {
   const since = new Date(Date.now() - STALE_AFTER_HOURS * 60 * 60 * 1000).toISOString();
 
   const result = await dbClientQuery({

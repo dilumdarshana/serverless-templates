@@ -3,8 +3,13 @@ import { DYNAMO_TABLE_ORDER } from '../../utils/constants';
 import { OrderMessage, OrderStatus } from '../order/orderService';
 
 /**
- * Process a single order message - in a real service this would call a
- * payment provider, send emails, trigger fulfilment, etc.
+ * Process a single order message.
+ *
+ * Stands in for the "heavy" downstream work of the event-driven flow. In a real
+ * service this would call a payment provider, send emails, trigger fulfilment,
+ * etc. If it throws, the caller (`orderProcessor.run`) reports the record as a
+ * batch item failure so SQS redelivers it; messages that keep failing move to
+ * the DLQ after `maxReceiveCount` attempts.
  */
 export const processOrder = async (message: OrderMessage) => {
   // Simulated business logic delay

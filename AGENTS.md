@@ -18,7 +18,8 @@ Serverless Framework v4 + TypeScript reference template. One deployable service;
 - **tsconfig uses `module: Preserve` + `moduleResolution: Bundler`** because TS 6 removed `node10`/`baseUrl`. Don't reintroduce `baseUrl`; path values need `./` prefixes.
 - **No path aliases.** `#utils/...`, `#src/...` were removed — use relative imports only.
 - **No pre-commit hooks actually run.** husky/lint-staged are declared but there is no `.husky/` dir or `prepare` script.
-- **`no-explicit-any` is warn-only**, so the build stays green with remaining `any` in `src/utils/validationHelper.ts` and `src/utils/dynamoDbHelper.ts`.
+- **`LAMBDA_STAGE` / `LAMBDA_REGION` are injected by `serverless.yml`** (`provider.environment`) — Lambda does not set them automatically. They drive table/queue/bucket suffixes in `src/utils/constants.ts` and the CORS middleware.
+- **CORS lives only in the app layer.** `src/middlewares/cors.ts` runs on every request via `api.use(cors)` and enforces `ALLOWED_ORIGINS`; the preflight route in `src/handlers/createHttpHandler.ts` only answers 200 and must NOT call `res.cors({})` (lambda-api would default an unset origin to `*` and bypass the allow-list).
 
 ## Architecture
 - Each HTTP function owns a **per-feature lambda-api router**: `src/functions/<feature>/handler.ts` calls the shared `createHttpHandler` factory (`src/handlers/createHttpHandler.ts`), which registers CORS + the preflight handler and then only that feature's routes (`src/functions/<feature>/routes.ts`). This keeps every function bundle isolated to its own feature code. Event-only functions expose their own entry: `src/functions/orderProcessor/orderProcessor.ts` (SQS) and `src/functions/dailyJob/dailyJob.ts` (cron). `cAuthorizer` lives in `src/handler.ts` and validates Cognito tokens.

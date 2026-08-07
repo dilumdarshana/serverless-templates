@@ -122,7 +122,7 @@ export const updateTodo = async (data: Attributes) => {
   if (task !== undefined) updates.task = task;
   if (status !== undefined) updates.status = status;
 
-  // ensure the item exists first
+  // Ensure the item exists first (throws 404 when it does not)
   await getTodo(data);
 
   const { UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues } = buildUpdateExpression({
@@ -130,7 +130,7 @@ export const updateTodo = async (data: Attributes) => {
     updatedAt: getCurrentTimestamp(),
   });
 
-  await dbClientUpdate({
+  const result = await dbClientUpdate({
     TableName: TABLE,
     Key: { id },
     UpdateExpression,
@@ -140,7 +140,8 @@ export const updateTodo = async (data: Attributes) => {
   });
 
   return {
-    data: { id, ...updates },
+    // Return the persisted item (includes the server-set updatedAt)
+    data: result.Attributes as TodoItem,
     message: 'TodoUpdatedSuccessfully',
   };
 };

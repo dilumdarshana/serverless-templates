@@ -10,6 +10,13 @@ import {
 import { validateCreateTodo, validateUpdateTodo } from './todoValidation';
 import { Request, Response } from 'lambda-api';
 
+/**
+ * Thin HTTP adapters: each one delegates to the base controller, wiring a
+ * validator (when the endpoint takes a body) and the feature's service.
+ * All request/response plumbing (attribute bag assembly, error mapping) is
+ * handled centrally by `src/controller.ts`.
+ */
+
 export const createTodo = (req: Request, res: Response) => controller(req, res, {
   validator: validateCreateTodo,
   service: createTodoService,

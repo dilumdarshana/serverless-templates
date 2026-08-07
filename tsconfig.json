@@ -14,13 +14,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node", "jest", "aws-lambda"],
-    "paths": {
-      "#utils/*": ["./src/utils/*"],
-      "#src/*": ["./src/*"],
-      "#middlewares/*": ["./src/middlewares/*"],
-      "#functions/*": ["./src/functions/*"]
-    }
+    "types": ["node", "jest", "aws-lambda"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", ".build", ".serverless", "coverage"]

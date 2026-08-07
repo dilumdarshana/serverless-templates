@@ -29,6 +29,7 @@ export const doAuth = async (event: APIGatewayRequestAuthorizerEvent) => {
     const { Username: userName, UserAttributes: userAttributes } = await getCognitoUserFromToken(accessToken);
     cognitoUserId = userName;
 
+    // Copy the interesting Cognito attributes into the context bag.
     (userAttributes || []).forEach((element) => {
       const { Name: name, Value: value } = element;
       switch (name) {
@@ -44,8 +45,12 @@ export const doAuth = async (event: APIGatewayRequestAuthorizerEvent) => {
 
     const { smeId, userId } = event.pathParameters || {};
 
-    // Example authorization rule: only allow the requested route when the
-    // logged-in user owns the SME / user ids in the path.
+    // ── EXAMPLE authorization rule ───────────────────────────────────────────
+    // Only allow access when the logged-in user owns the SME / user ids in the
+    // path. NOTE: for this branch to activate, the Cognito `GetUser` response
+    // would have to carry `custom:sme_id` / `custom:user_id` attributes and the
+    // switch above would map them into `extraData.sme_id` / `extraData.user_id`.
+    // It is kept here to demonstrate path-based authorization.
     if (smeId && smeId === extraData.sme_id) {
       if ((extraData.role === ROLES.ADMIN) || !userId) {
         return buildAuthorizerResponse(cognitoUserId!, effect, extraData);
@@ -59,6 +64,9 @@ export const doAuth = async (event: APIGatewayRequestAuthorizerEvent) => {
     return buildAuthorizerResponse(cognitoUserId!, effect, extraData);
   } catch (error) {
     console.log('Lambda authorizer error', error);
+    // Soft-fail pattern: an expired / revoked token still returns Allow, but
+    // flags it in the context so the application can decide how to react
+    // (e.g. prompt for a re-login). Anything else is rejected outright.
     if (error instanceof Error && error.message === 'Access Token has expired') {
       return buildAuthorizerResponse(cognitoUserId || 'user', 'Allow', { isAuthTokenExpired: true });
     }
@@ -70,7 +78,8 @@ export const doAuth = async (event: APIGatewayRequestAuthorizerEvent) => {
 };
 
 /**
- * Check whether the current role is allowed for a given permission list.
+ * Role-based guard for use inside services.
+ * Throws HTTP 403 when `currentRole` is not present in `permisionList`.
  */
 export const checkAuthorization = (permisionList: string[], currentRole?: string, message = 'AccessDenied') => {
   if (!permisionList.includes(currentRole || '')) {

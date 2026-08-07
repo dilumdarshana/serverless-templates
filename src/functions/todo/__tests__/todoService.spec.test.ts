@@ -70,14 +70,16 @@ describe('Todo service', () => {
     mockedGet.mockResolvedValue({
       Item: { id: 'abc', task: 'Buy milk', status: 'pending', createdAt: '2026-01-01T00:00:00.000Z' },
     });
-    mockedUpdate.mockResolvedValue({});
+    mockedUpdate.mockResolvedValue({
+      Attributes: { id: 'abc', task: 'Updated task', status: 'pending', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' },
+    });
     mockedBuildUpdateExpression.mockReturnValue({
       UpdateExpression: 'SET #task = :task, #updatedAt = :updatedAt',
       ExpressionAttributeNames: { '#task': 'task', '#updatedAt': 'updatedAt' },
-      ExpressionAttributeValues: { ':task': 'Updated task', ':updatedAt': '2026-01-01T00:00:00.000Z' },
+      ExpressionAttributeValues: { ':task': 'Updated task', ':updatedAt': '2026-01-02T00:00:00.000Z' },
     });
 
-    await updateTodo({ params: { id: 'abc' }, task: 'Updated task' });
+    const res = await updateTodo({ params: { id: 'abc' }, task: 'Updated task' });
 
     expect(mockedBuildUpdateExpression).toHaveBeenCalledWith(
       expect.objectContaining({ task: 'Updated task' }),
@@ -86,7 +88,10 @@ describe('Todo service', () => {
       expect.not.objectContaining({ status: expect.anything() }),
     );
     expect(mockedUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ Key: { id: 'abc' } }),
+      expect.objectContaining({ Key: { id: 'abc' }, ReturnValues: 'ALL_NEW' }),
     );
+    // the response is the persisted item (includes server-set updatedAt)
+    expect(res.data).toMatchObject({ id: 'abc', task: 'Updated task', updatedAt: '2026-01-02T00:00:00.000Z' });
+    expect(res.message).toBe('TodoUpdatedSuccessfully');
   });
 });

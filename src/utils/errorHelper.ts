@@ -2,6 +2,13 @@ import Boom from '@hapi/boom';
 
 /**
  * Convert an application error into a Boom HTTP error payload.
+ *
+ * Known 4xx status codes (set via `InterceptError`) map to the matching Boom
+ * error so the client receives the intended message. Anything else (undefined
+ * or unknown code) becomes a generic 500 with a masked message - the real
+ * error is never leaked to the client; it is logged instead (see
+ * `defaultReject` in responseHelper.ts).
+ *
  * @param error - error carrying an HTTP status code and message
  */
 export const boom = (error: { statusCode?: number; message?: string }) => {
@@ -33,6 +40,10 @@ export const boom = (error: { statusCode?: number; message?: string }) => {
 
 /**
  * Build a custom error carrying an HTTP status code.
+ *
+ * Services throw these for expected failures (e.g. `new InterceptError('Todo
+ * not found', 404)`); the controller maps them to the matching HTTP response.
+ *
  * @param message - error message
  * @param code - HTTP status code (default 500)
  */
